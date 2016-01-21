@@ -138,6 +138,7 @@ class Command(object):
             self.logger_name = '%s.%s' % (self.__module__, type(self).__name__)
         if get_logger is None:
             get_logger = logging.getLogger
+            logging.basicConfig(format="%(asctime)s %(name)s:")
         self.get_logger = get_logger
         self.log = get_logger(self.logger_name)
 
@@ -248,7 +249,15 @@ class ParamikoTransport(Transport):
     def start_shell(self, argv, log_stdout=True):
         logger_name = self.get_next_command_logger_name()
         ssh = self._transport.open_channel('session')
-        self.log.info('RUN %s', argv)
+
+        # Mark the execution time in the log
+        stamp = SSHCommand(ssh, ['date','-Ins'], logger_name, log_stdout=False)
+        stamp.wait()
+        self.log.info('[%s] RUN %s', stamp.stdout_text.strip(), argv)
+
+        # Reopen the channel
+        ssh = self._transport.open_channel('session')
+
         return SSHCommand(ssh, argv, logger_name=logger_name,
                           log_stdout=log_stdout,
                           get_logger=self.host.config.get_logger)
@@ -320,7 +329,11 @@ class OpenSSHTransport(Transport):
         return argv
 
     def start_shell(self, argv, log_stdout=True):
-        self.log.info('RUN %s', argv)
+        # Mark the execution time in the log
+        stamp = self._run(['date','-Ins'], log_stdout=True)
+        stamp.wait()
+        self.log.info('[%s] RUN %s', stamp.stdout_text.strip(), argv)
+
         command = self._run(['bash'], argv=argv, log_stdout=log_stdout)
         return command
 
